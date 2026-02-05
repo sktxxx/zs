@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+    <title>信贷智能助手 - 和县农商银行</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+    <style>
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes slideInUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-slide-up { animation: slideInUp 0.3s ease-out forwards; }
+        .animate-fade-in { animation: fadeIn 0.4s ease-in forwards; }
+        
+        /* 品牌配色定义 */
+        :root {
+            --bank-red: #E63917;
+            --bank-orange: #FF5A00;
+            --bank-green: #76B92D;
+            --bank-light-green: #A2D149;
+        }
+
+        /* 渐变样式 */
+        .bg-bank-gradient {
+            background: linear-gradient(135deg, var(--bank-orange) 0%, var(--bank-red) 100%);
+        }
+        .text-bank-red { color: var(--bank-red); }
+        .bg-bank-green { background-color: var(--bank-green); }
+        .text-bank-green { color: var(--bank-green); }
+
+        /* 模拟Logo样式 */
+        .logo-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--bank-orange) 0%, var(--bank-red) 100%);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .logo-leaf {
+            width: 25px;
+            height: 25px;
+            background: linear-gradient(135deg, var(--bank-light-green) 0%, var(--bank-green) 100%);
+            border-radius: 0 100% 0 100%;
+            transform: rotate(-10deg);
+        }
+        .logo-white-center {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 4px;
+            transform: rotate(45deg);
+            left: 14px;
+        }
+
+        #pullToRefresh {
+            height: 0;
+            overflow: hidden;
+            transition: height 0.3s ease;
+            background: #fdf2f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .refreshing #pullToRefresh {
+            height: 60px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
+
+<div class="w-[375px] h-[812px] bg-white border border-gray-200 rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col">
+    
+    <!-- Status Bar -->
+    <div class="h-11 px-8 flex justify-between items-center bg-white text-xs font-semibold flex-none z-50">
+        <span>09:41</span>
+        <div class="flex items-center space-x-1.5">
+            <span class="iconify" data-icon="material-symbols:signal-cellular-4-bar"></span>
+            <span class="iconify" data-icon="material-symbols:wifi"></span>
+            <span class="iconify" data-icon="material-symbols:battery-full-rounded"></span>
+        </div>
+    </div>
+
+    <!-- 1. 登录界面 -->
+    <section id="loginView" class="absolute inset-0 z-[100] bg-white flex flex-col p-8 animate-fade-in">
+        <div class="mt-20 mb-12 text-center">
+            <!-- 渐变Logo模拟 -->
+            <div class="logo-circle mx-auto mb-6 shadow-lg shadow-red-200">
+                <div class="logo-white-center"></div>
+                <div class="logo-leaf"></div>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-800 tracking-tighter">和县农商银行</h1>
+            <p class="text-gray-400 text-sm mt-2 font-medium">智慧授信调查助手</p>
+        </div>
+        <div class="space-y-4">
+            <div class="relative">
+                <span class="iconify absolute left-4 top-4 text-gray-300 text-xl" data-icon="material-symbols:phone-android-outline-rounded"></span>
+                <input type="tel" id="loginPhone" placeholder="请输入手机号" class="w-full pl-12 pr-4 py-4 bg-gray-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-red-400 outline-none transition-all">
+            </div>
+            <div class="relative flex space-x-2">
+                <input type="number" id="loginCode" placeholder="验证码" class="flex-1 px-6 py-4 bg-gray-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-red-400 outline-none transition-all">
+                <button onclick="alert('验证码：123456')" class="bg-red-50 text-bank-red px-4 rounded-2xl text-xs font-bold">获取验证码</button>
+            </div>
+        </div>
+        <button onclick="doLogin()" class="w-full bg-bank-gradient text-white font-bold py-4 rounded-2xl mt-10 shadow-lg shadow-red-500/30 active:scale-95 transition-transform">立即登录</button>
+    </section>
+
+    <!-- 2. Header -->
+    <header id="mainHeader" class="hidden h-14 flex items-center justify-between px-5 bg-white border-b border-gray-100 flex-none z-10">
+        <div id="headerLeft" class="flex items-center min-w-[80px]">
+            <button onclick="toggleUserTypeModal()" class="flex items-center space-x-1 bg-green-50 px-3 py-1.5 rounded-full border border-green-100 transition-all active:scale-95">
+                <span id="userTypeLabel" class="text-xs font-bold text-bank-green">个人用户</span>
+                <span class="iconify text-bank-green" data-icon="material-symbols:keyboard-arrow-down-rounded"></span>
+            </button>
+        </div>
+        <div class="flex flex-col items-center">
+            <span class="font-bold text-gray-800 text-sm">信贷智能助手</span>
+            <span class="text-[8px] text-bank-red font-bold uppercase tracking-widest">Hexian Rural Bank</span>
+        </div>
+        <div class="min-w-[80px] flex justify-end">
+            <span class="iconify text-gray-400 text-xl" data-icon="material-symbols:qr-code-scanner"></span>
+        </div>
+    </header>
+
+    <!-- 3. 内容区 -->
+    <main class="flex-1 overflow-y-auto hide-scrollbar bg-gray-50 pb-24 hidden relative" id="mainContainer">
+        
+        <div id="pullToRefresh">
+            <span class="iconify animate-spin text-2xl text-bank-red" data-icon="material-symbols:refresh-rounded"></span>
+            <span class="ml-2 text-xs font-bold text-bank-red" id="refreshText">同步最新调查结论...</span>
+        </div>
+
+        <!-- 首页视图 -->
+        <section class="animate-slide-in" id="homeView">
+            <!-- 品牌卡片 -->
+            <div class="p-4">
+                <div class="bg-bank-gradient rounded-[32px] p-6 text-white shadow-xl shadow-red-100 relative overflow-hidden">
+                    <div class="relative z-10">
+                        <div class="flex items-center space-x-2 mb-4">
+                            <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md border border-white/30">
+                                <span class="iconify text-white" data-icon="material-symbols:account-balance-rounded"></span>
+                            </div>
+                            <span class="text-[10px] font-bold tracking-widest">和县农商银行 · HEXIAN RURAL BANK</span>
+                        </div>
+                        <h2 class="text-2xl font-bold mb-1" id="homeCardTitle">授信调查</h2>
+                        <p class="text-red-100 text-[11px] opacity-90 mb-6 font-medium" id="homeCardSub">立足和县 · 服务三农 · 助力小微</p>
+                        <button onclick="handleStartApplication()" class="w-full bg-white text-bank-red py-4 rounded-2xl font-bold text-sm shadow-xl flex items-center justify-center active:scale-95 transition-transform">
+                            <span class="iconify mr-2 text-xl" data-icon="material-symbols:add-circle-rounded"></span>
+                            <span id="homeBtnLabel">发起授信调查申请</span>
+                        </button>
+                    </div>
+                    <!-- 背景装饰 -->
+                    <div class="absolute -right-4 -bottom-4 w-32 h-32 bg-white opacity-10 rounded-full"></div>
+                </div>
+            </div>
+
+            <!-- 和县农商行介绍 -->
+            <div class="px-5 mb-6">
+                <div class="bg-white p-5 rounded-[28px] border border-gray-100 shadow-sm relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-sm font-bold text-gray-800 flex items-center">
+                            <span class="w-1 h-4 bg-bank-green rounded-full mr-2"></span>
+                            品牌服务宗旨
+                        </h4>
+                        <span class="text-[10px] text-bank-green font-bold bg-green-50 px-2 py-0.5 rounded">普惠金融</span>
+                    </div>
+                    <p class="text-[11px] text-gray-500 leading-relaxed italic">
+                        和县农商银行始终坚持“您身边的银行”理念。本系统基于 AI 技术自动识别分析，调查结论实时同步后台。我们致力于为和县每一位创业者提供极速、智能的融资尽调体验。
+                    </p>
+                </div>
+            </div>
+            
+            <!-- 记录区 -->
+            <div class="px-5 mt-4" ontouchstart="handleTouchStart(event)" ontouchend="handleTouchEnd(event)">
+                <div class="flex items-center justify-between mb-4 px-1">
+                    <h3 class="font-bold text-gray-800 text-sm">授信调查记录</h3>
+                    <div class="flex items-center text-bank-red space-x-1" onclick="simulateRefresh()">
+                        <span class="iconify text-xs" data-icon="material-symbols:refresh"></span>
+                        <span class="text-[10px] font-bold">下拉刷新记录</span>
+                    </div>
+                </div>
+                <div class="space-y-3" id="recordsContainer"></div>
+            </div>
+        </section>
+
+        <!-- 上传资料视图 -->
+        <section class="hidden animate-slide-in p-6" id="uploadView">
+            <div class="mb-6">
+                <div class="flex items-center space-x-2 mb-2">
+                    <div class="w-1 h-6 bg-bank-red rounded-full"></div>
+                    <h2 class="text-xl font-bold text-gray-900" id="uploadTitle">上传调查资料</h2>
+                </div>
+                <p class="text-[11px] text-gray-400" id="uploadSub">请提交相关材料，AI 将自动进行尽调分析</p>
+            </div>
+            <div class="space-y-4" id="dynamicUploadFields"></div>
+            <button onclick="submitDD()" class="w-full bg-bank-gradient text-white font-bold py-4 rounded-2xl mt-8 shadow-xl shadow-red-500/20 active:scale-95 transition-all">提交并开始 AI 分析</button>
+            <button onclick="cancelUpload()" class="w-full py-4 text-gray-400 text-sm font-medium">取消并返回</button>
+        </section>
+
+        <!-- 我的页面视图 -->
+        <section class="hidden animate-slide-in p-5" id="profileView">
+            <div class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-5 relative overflow-hidden">
+                <div class="flex items-center space-x-4 relative z-10">
+                    <div class="w-16 h-16 bg-bank-gradient rounded-full flex items-center justify-center text-white text-3xl shadow-lg border-4 border-white">
+                        <span class="iconify" data-icon="material-symbols:person"></span>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-800 text-lg" id="profileName">张先生</h3>
+                        <p class="text-xs text-gray-400 mt-1" id="profileTypeInfo">和县农商行认证客户</p>
+                    </div>
+                </div>
+                <div class="absolute right-0 top-0 w-24 h-24 bg-red-50 rounded-full -mr-12 -mt-12 opacity-50"></div>
+            </div>
+
+            <!-- 归属客户经理 -->
+            <div class="bg-white rounded-[28px] p-5 shadow-sm border border-gray-100 mb-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">归属客户经理</h4>
+                    <span class="iconify text-bank-green" data-icon="material-symbols:verified-user-outline"></span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <div class="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center text-bank-red">
+                        <span class="iconify text-2xl" data-icon="material-symbols:person-celebration"></span>
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-gray-800" id="mgrName">王经理</p>
+                        <p class="text-[10px] text-gray-400">和县农商行专属信贷咨询</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[28px] overflow-hidden shadow-sm border border-gray-100 mb-6">
+                <div onclick="alert('关于我们')" class="p-5 flex items-center justify-between border-b border-gray-50 active:bg-gray-50 transition-colors">
+                    <span class="text-sm font-medium text-gray-700">关于和县农商银行</span>
+                    <span class="iconify text-gray-300" data-icon="material-symbols:chevron-right"></span>
+                </div>
+                <div onclick="alert('隐私协议')" class="p-5 flex items-center justify-between border-b border-gray-50">
+                    <span class="text-sm font-medium text-gray-700">隐私政策</span>
+                    <span class="iconify text-gray-300" data-icon="material-symbols:chevron-right"></span>
+                </div>
+                <div onclick="alert('服务协议')" class="p-5 flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-700">调查授信协议</span>
+                    <span class="iconify text-gray-300" data-icon="material-symbols:chevron-right"></span>
+                </div>
+            </div>
+
+            <button onclick="location.reload()" class="w-full bg-white text-bank-red font-bold py-4 rounded-2xl border border-red-50 shadow-sm active:bg-red-50 transition-colors">安全退出当前账号</button>
+        </section>
+    </main>
+
+    <!-- 4. 底部导航 -->
+    <nav id="bottomNav" class="hidden h-20 bg-white border-t border-gray-100 flex items-center justify-around px-12 absolute bottom-0 w-full z-20">
+        <button onclick="switchTab('home')" class="flex flex-col items-center text-bank-red" id="navHome">
+            <span class="iconify text-2xl" data-icon="material-symbols:home-rounded"></span>
+            <span class="text-[10px] font-bold">首页</span>
+        </button>
+        <button onclick="switchTab('profile')" class="flex flex-col items-center text-gray-400" id="navProfile">
+            <span class="iconify text-2xl" data-icon="material-symbols:account-circle-outline"></span>
+            <span class="text-[10px] font-medium">我的</span>
+        </button>
+    </nav>
+
+    <!-- 弹窗：身份切换 -->
+    <div id="modeModal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end justify-center">
+        <div class="bg-white w-full max-w-[375px] rounded-t-[40px] p-8 animate-slide-up">
+            <div class="w-12 h-1.5 bg-gray-100 rounded-full mx-auto mb-8"></div>
+            <h3 class="text-center font-bold text-gray-800 mb-8">选择授信调查主体</h3>
+            <div class="space-y-4">
+                <button onclick="setUserType('individual')" class="w-full p-5 rounded-[24px] border-2 border-red-600 bg-red-50 flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-bank-gradient rounded-2xl flex items-center justify-center text-white text-2xl"><span class="iconify" data-icon="material-symbols:person"></span></div>
+                    <div class="text-left font-bold text-gray-800 text-sm">个人调查主体</div>
+                </button>
+                <button onclick="setUserType('enterprise')" class="w-full p-5 rounded-[24px] border-2 border-gray-100 bg-white flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 text-2xl"><span class="iconify" data-icon="material-symbols:business"></span></div>
+                    <div class="text-left font-bold text-gray-800 text-sm">企业认证与调查</div>
+                </button>
+            </div>
+            <button onclick="toggleUserTypeModal()" class="w-full mt-6 py-4 text-gray-400 font-bold">取消选择</button>
+        </div>
+    </div>
+
+    <!-- 弹窗：文件选择器 -->
+    <div id="filePickerModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-end justify-center">
+        <div class="bg-gray-100 w-full max-w-[375px] rounded-t-[24px] p-4 animate-slide-up">
+            <p class="text-center text-gray-400 text-xs mb-4">选择文件上传方式</p>
+            <div class="bg-white rounded-2xl overflow-hidden mb-3">
+                <button onclick="selectSimulatedFile('拍照')" class="w-full p-4 text-center text-bank-red font-medium border-b border-gray-50">实时拍照</button>
+                <button onclick="selectSimulatedFile('相册')" class="w-full p-4 text-center text-bank-red font-medium border-b border-gray-50">从相册选择图片</button>
+                <button onclick="selectSimulatedFile('浏览')" class="w-full p-4 text-center text-bank-red font-medium">浏览本地文档</button>
+            </div>
+            <button onclick="closeFilePicker()" class="w-full bg-white p-4 rounded-2xl text-gray-800 font-bold">取消</button>
+        </div>
+    </div>
+
+    <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 bg-gray-200 rounded-full"></div>
+</div>
+
+<script>
+    let currentUserType = 'individual';
+    let isEnterpriseCertified = false; 
+    let records = { individual: [], enterprise: [] }; 
+    let startY = 0;
+    let currentUploadEl = null; 
+    let currentFileName = ""; 
+
+    function doLogin() {
+        const p = document.getElementById('loginPhone').value;
+        if(!p) return alert('请输入手机号');
+        document.getElementById('loginView').classList.add('hidden');
+        document.getElementById('mainHeader').classList.remove('hidden');
+        document.getElementById('mainContainer').classList.remove('hidden');
+        document.getElementById('bottomNav').classList.remove('hidden');
+        document.getElementById('profileName').innerText = `和农商户 ${p.substring(0,3)}***`;
+        switchTab('home');
+    }
+
+    function switchTab(t) {
+        ['homeView','uploadView','profileView'].forEach(v => document.getElementById(v).classList.add('hidden'));
+        const h = document.getElementById('navHome'), p = document.getElementById('navProfile');
+        const headerLeft = document.getElementById('headerLeft');
+
+        if(t === 'home') {
+            document.getElementById('homeView').classList.remove('hidden');
+            h.className = 'flex flex-col items-center text-bank-red'; p.className = 'flex flex-col items-center text-gray-400';
+            headerLeft.classList.remove('invisible');
+            updateHomeCard(); renderRecords();
+        } else {
+            document.getElementById('profileView').classList.remove('hidden');
+            p.className = 'flex flex-col items-center text-bank-red'; h.className = 'flex flex-col items-center text-gray-400';
+            headerLeft.classList.add('invisible');
+            updateProfileInfo();
+        }
+    }
+
+    function updateHomeCard() {
+        const b = document.getElementById('homeBtnLabel'), t = document.getElementById('homeCardTitle');
+        if (currentUserType === 'individual') {
+            t.innerText = '个人授信调查'; b.innerText = '发起个人授信调查申请';
+        } else {
+            if (!isEnterpriseCertified) {
+                t.innerText = '企业认证调查'; b.innerText = '开始企业资格认证';
+            } else {
+                t.innerText = '企业授信调查'; b.innerText = '发起企业调查申请';
+            }
+        }
+    }
+
+    function updateProfileInfo() {
+        const n = document.getElementById('mgrName');
+        n.innerText = (currentUserType === 'individual') ? '王经理' : '对公业务李经理';
+        document.getElementById('profileTypeInfo').innerText = (currentUserType === 'individual') ? '个人账户 | 已通过实名认证' : '企业账户 | ' + (isEnterpriseCertified ? '已完成调查认证' : '待提交基础认证');
+    }
+
+    function toggleUserTypeModal() { document.getElementById('modeModal').classList.toggle('hidden'); }
+
+    function setUserType(type) {
+        currentUserType = type;
+        document.getElementById('userTypeLabel').innerText = type === 'individual' ? '个人用户' : '企业用户';
+        toggleUserTypeModal();
+        if(type === 'enterprise' && !isEnterpriseCertified) {
+            alert('和县农商银行温馨提示：请先完成企业基础认证资料上传。');
+            startCertificationUpload();
+        } else {
+            switchTab('home');
+        }
+    }
+
+    function handleStartApplication() {
+        if (currentUserType === 'individual') {
+            openUpload('个人授信调查申请', '提交后 AI 引擎将深度扫描申请人资信', docConfigs.individual);
+        } else {
+            !isEnterpriseCertified ? startCertificationUpload() : openUpload('企业授信调查申请', '认证已完成，请提交企业财务及调查资料', docConfigs.enterpriseCredit);
+        }
+    }
+
+    const docConfigs = {
+        individual: [{n:'本人身份证', i:'material-symbols:id-card-outline'}, {n:'近半年流水材料', i:'material-symbols:receipt-long'}, {n:'授信调查授权签署', i:'material-symbols:assignment-turned-in'}],
+        enterpriseCert: [
+            {n:'法人身份证正面', i:'material-symbols:id-card-outline'},{n:'法人身份证反面', i:'material-symbols:id-card-outline'},
+            {n:'营业执照副本', i:'material-symbols:receipt-long'},{n:'代理人证件正面', i:'material-symbols:person-add'},{n:'代理人证件反面', i:'material-symbols:person-add'}
+        ],
+        enterpriseCredit: [
+            {n:'企业营业执照', i:'material-symbols:receipt-long'},{n:'法人代表证件', i:'material-symbols:id-card-outline'},
+            {n:'企业征信授权书', i:'material-symbols:assignment-turned-in'},{n:'企业近一年财报流水', i:'material-symbols:finance-mode'}
+        ]
+    };
+
+    function startCertificationUpload() { openUpload('企业调查认证上传', '基础认证材料不计入申请记录，仅用于身份核实', docConfigs.enterpriseCert); }
+
+    function openUpload(title, sub, config) {
+        document.getElementById('homeView').classList.add('hidden');
+        document.getElementById('uploadView').classList.remove('hidden');
+        document.getElementById('uploadTitle').innerText = title;
+        document.getElementById('uploadSub').innerText = sub;
+        const container = document.getElementById('dynamicUploadFields');
+        container.innerHTML = config.map(item => `
+            <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                <label class="block text-xs font-bold text-gray-700 mb-3">${item.n} <span class="text-bank-green font-normal"> (必传项)</span></label>
+                <div class="border-2 border-dashed border-gray-100 rounded-xl py-6 flex flex-col items-center justify-center bg-gray-50/50 cursor-pointer active:bg-red-50 transition-all" onclick="triggerFilePicker(this, '${item.n}')">
+                    <span class="iconify text-2xl text-gray-300 mb-1" data-icon="${item.i}"></span>
+                    <p class="text-[10px] text-gray-400">点击上传文件</p>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function triggerFilePicker(el, name) {
+        currentUploadEl = el; currentFileName = name;
+        document.getElementById('filePickerModal').classList.remove('hidden');
+    }
+
+    function closeFilePicker() { document.getElementById('filePickerModal').classList.add('hidden'); }
+
+    function selectSimulatedFile(method) {
+        closeFilePicker();
+        const el = currentUploadEl; const name = currentFileName;
+        el.innerHTML = `<span class="iconify animate-spin text-2xl text-bank-red mb-1" data-icon="material-symbols:refresh-rounded"></span><p class="text-[10px] text-gray-400">AI 正通过 ${method} 识别...</p>`;
+        el.onclick = null;
+        setTimeout(() => {
+            el.innerHTML = `<div class="flex items-center space-x-3 w-full px-4 text-left"><div class="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-bank-green"><span class="iconify text-lg" data-icon="material-symbols:check-circle"></span></div><div class="flex-1"><p class="text-[10px] font-bold text-gray-800">${name}_识别成功.jpg</p><p class="text-[9px] text-gray-400">已提取核心要素</p></div><span class="iconify text-gray-300 text-sm" data-icon="material-symbols:delete-rounded" onclick="event.stopPropagation(); resetField(this, '${name}')"></span></div>`;
+            el.className = "border-2 border-green-100 rounded-xl py-4 bg-green-50/20";
+        }, 1200);
+    }
+
+    function resetField(btn, name) {
+        const parent = btn.closest('.rounded-xl');
+        parent.className = "border-2 border-dashed border-gray-100 rounded-xl py-6 flex flex-col items-center justify-center bg-gray-50/50 cursor-pointer";
+        parent.onclick = () => triggerFilePicker(parent, name);
+        parent.innerHTML = `<span class="iconify text-2xl text-gray-300 mb-1" data-icon="material-symbols:upload-file"></span><p class="text-[10px] text-gray-400">重新上传</p>`;
+    }
+
+    function submitDD() {
+        const title = document.getElementById('uploadTitle').innerText;
+        alert('材料已成功提交！和县农商银行 AI 将自动进行多维度调查，请通过下拉首页来获取最新结论。');
+        if (title.indexOf('认证') === -1) {
+            records[currentUserType].unshift({
+                title: title, date: new Date().toISOString().split('T')[0],
+                status: '智能调查中', color: 'text-orange-500 bg-orange-50'
+            });
+        } else {
+            isEnterpriseCertified = true; 
+        }
+        switchTab('home');
+    }
+
+    function cancelUpload() { 
+        (currentUserType === 'enterprise' && !isEnterpriseCertified) ? setUserType('individual') : switchTab('home');
+    }
+
+    function renderRecords() {
+        const c = document.getElementById('recordsContainer');
+        const list = records[currentUserType];
+        if(list.length === 0) { c.innerHTML = `<div class="py-16 text-center text-gray-300 text-xs">暂无授信调查记录</div>`; return; }
+        c.innerHTML = list.map(item => `
+            <div class="bg-white p-4 rounded-2xl border border-gray-50 flex items-center justify-between shadow-sm animate-fade-in">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 text-xl"><span class="iconify" data-icon="material-symbols:description-outline"></span></div>
+                    <div><p class="text-sm font-bold text-gray-800">${item.title}</p><p class="text-[10px] text-gray-400">${item.date} 提交申请</p></div>
+                </div>
+                <div class="text-[10px] px-2 py-0.5 rounded-lg font-bold ${item.color}">${item.status}</div>
+            </div>
+        `).join('');
+    }
+
+    function handleTouchStart(e) { startY = e.touches[0].pageY; }
+    function handleTouchEnd(e) { if (e.changedTouches[0].pageY - startY > 100) simulateRefresh(); }
+
+    function simulateRefresh() {
+        const container = document.getElementById('mainContainer');
+        const refreshText = document.getElementById('refreshText');
+        container.classList.add('refreshing');
+        refreshText.innerText = "和县农商 AI 正在同步调查结论...";
+
+        setTimeout(() => {
+            records[currentUserType].forEach(record => {
+                if (record.status === '智能调查中') {
+                    record.status = '调查完成';
+                    record.color = 'text-bank-green bg-green-50';
+                }
+            });
+            container.classList.remove('refreshing');
+            renderRecords();
+            refreshText.innerText = "同步最新调查结论...";
+        }, 1500);
+    }
+</script>
+</body>
+</html>
